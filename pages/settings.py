@@ -1,5 +1,5 @@
 import streamlit as st
-from core.templates import get_template_names, get_template_tasks, seed_templates
+from core.templates import get_template_names, get_template_tasks, seed_templates, reseed_templates
 from core.supabase_client import get_client
 from core.constants import ROLES, TASK_TYPES, STAGES
 
@@ -22,12 +22,18 @@ def settings_page():
 def _templates_tab():
     st.subheader("Task Templates")
 
-    if st.button("Seed Default Templates (Kitchen, Bathroom, Closet)"):
-        count = seed_templates()
-        if count > 0:
-            st.success(f"Seeded {count} template tasks.")
-        else:
-            st.info("Templates already exist — nothing seeded.")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Seed Templates (if empty)"):
+            count = seed_templates()
+            if count > 0:
+                st.success(f"Seeded {count} template tasks.")
+            else:
+                st.info("Templates already exist.")
+    with c2:
+        if st.button("🔄 Force Reseed Templates", type="secondary"):
+            count = reseed_templates()
+            st.success(f"Reseeded {count} template tasks.")
 
     names = get_template_names()
     if not names:

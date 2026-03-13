@@ -2,7 +2,6 @@ import streamlit as st
 from core.jobs import get_jobs_by_stage, create_job, get_all_jobs
 from core.tasks import get_open_task_count, has_red_tasks
 from core.constants import STAGES, INSTALL_TYPES, ROLES
-from core.templates import get_template_names
 from datetime import date
 
 
@@ -23,21 +22,20 @@ def jobs_kanban_page():
 
 def _new_job_form():
     st.subheader("New Job")
-    template_names = get_template_names()
-    template_options = ["None"] + template_names
+    st.caption("Standard task list (Estimate → Closeout) will be created automatically.")
 
     with st.form("new_job_form", clear_on_submit=True):
         c1, c2 = st.columns(2)
         with c1:
             job_name = st.text_input("Job Name *", placeholder="e.g. Johnson Kitchen")
+            job_number = st.text_input("Job # (from ProCore/Innergy)", placeholder="e.g. 2024-047")
             builder = st.text_input("Builder", placeholder="e.g. Selkirk Builders")
             install_type = st.selectbox("Install Type", INSTALL_TYPES)
-            install_date = st.date_input("Install Date", value=None)
         with c2:
             client_name = st.text_input("Client Name", placeholder="e.g. Johnson Family")
             responsible_pm = st.selectbox("Responsible PM", ROLES, index=0)
-            template = st.selectbox("Task Template", template_options)
             stage = st.selectbox("Starting Stage", STAGES)
+            install_date = st.date_input("Install Date", value=None)
 
         notes = st.text_area("Notes", height=60)
 
@@ -53,6 +51,7 @@ def _new_job_form():
             else:
                 job = create_job(
                     job_name=job_name.strip(),
+                    job_number=job_number.strip(),
                     builder=builder.strip(),
                     client_name=client_name.strip(),
                     responsible_pm=responsible_pm,
@@ -60,9 +59,8 @@ def _new_job_form():
                     install_type=install_type,
                     install_date=install_date if install_date else None,
                     notes=notes.strip(),
-                    template_name=template if template != "None" else None,
                 )
-                st.success(f"Created: {job['job_name']}")
+                st.success(f"Created: {job['job_name']} — 15 tasks generated.")
                 st.session_state.show_new_job_form = False
                 st.rerun()
 
@@ -96,15 +94,15 @@ def _job_card(job: dict, stage: str):
 
     install_date = job.get("install_date")
     date_line = f"📅 {install_date}" if install_date else ""
-
+    job_num = job.get("job_number", "")
+    num_line = f"<span style='color:gray;font-size:0.8em'>#{job_num}</span> " if job_num else ""
     builder = job.get("builder", "")
     builder_line = f"<span style='color:gray;font-size:0.85em'>{builder}</span>" if builder else ""
-
     task_line = f"<span style='color:gray;font-size:0.85em'>{task_count} task{'s' if task_count != 1 else ''}</span>"
 
     with st.container(border=True):
         st.markdown(
-            f"**{job['job_name']}**{alert}<br>{builder_line}<br>{task_line}"
+            f"{num_line}**{job['job_name']}**{alert}<br>{builder_line}<br>{task_line}"
             + (f"<br><span style='font-size:0.85em'>{date_line}</span>" if date_line else ""),
             unsafe_allow_html=True,
         )

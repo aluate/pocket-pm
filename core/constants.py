@@ -1,10 +1,13 @@
 STAGES = ["Sales", "Design", "Engineering", "Production", "Install", "Closeout"]
 
 TASK_TYPES = [
-    "Field",
+    "Estimate",
     "Design",
+    "Selections",
+    "Approval",
     "Engineering",
-    "Procurement",
+    "Production",
+    "Field",
     "Install",
     "Financial",
     "Communication",
@@ -31,12 +34,15 @@ INSTALL_STATUSES = ["Scheduled", "In Progress", "Complete"]
 AGING_YELLOW = 3
 AGING_RED = 6
 
-# Task type order for display grouping (matches typical workflow order)
+# Task type order for display grouping (matches workflow order)
 TASK_TYPE_ORDER = [
-    "Field",
+    "Estimate",
     "Design",
+    "Selections",
+    "Approval",
     "Engineering",
-    "Procurement",
+    "Production",
+    "Field",
     "Install",
     "Financial",
     "Communication",

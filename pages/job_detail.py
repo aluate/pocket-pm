@@ -53,13 +53,15 @@ def _job_header(job: dict):
     c1, c2, c3 = st.columns([3, 2, 1])
 
     with c1:
+        job_num = job.get("job_number", "")
         builder = job.get("builder", "—")
         client = job.get("client_name", "—")
         pm = job.get("responsible_pm", "—")
         install_date = job.get("install_date", "—")
         install_type = job.get("install_type", "—")
+        num_str = f" &nbsp; **Job #:** {job_num}" if job_num else ""
         st.markdown(
-            f"**Builder:** {builder} &nbsp; **Client:** {client} &nbsp; **PM:** {pm}<br>"
+            f"**Builder:** {builder} &nbsp; **Client:** {client} &nbsp; **PM:** {pm}{num_str}<br>"
             f"**Install:** {install_date} ({install_type})",
             unsafe_allow_html=True,
         )
@@ -89,6 +91,7 @@ def _edit_job_form(job: dict):
         c1, c2 = st.columns(2)
         with c1:
             job_name = st.text_input("Job Name", value=job.get("job_name", ""))
+            job_number = st.text_input("Job #", value=job.get("job_number", ""))
             builder = st.text_input("Builder", value=job.get("builder", ""))
             install_type = st.selectbox(
                 "Install Type",
@@ -117,6 +120,7 @@ def _edit_job_form(job: dict):
             update_job(
                 job["id"],
                 job_name=job_name,
+                job_number=job_number,
                 builder=builder,
                 client_name=client_name,
                 install_type=install_type,
@@ -134,7 +138,7 @@ def _edit_job_form(job: dict):
 
 def _quick_add_task_for_job(job_id: str):
     with st.form(f"quick_add_{job_id}", clear_on_submit=True):
-        c1, c2, c3, c4 = st.columns([4, 2, 2, 1])
+        c1, c2, c3, c4, c5 = st.columns([4, 2, 2, 2, 1])
         with c1:
             title = st.text_input("Task", placeholder="Task description", label_visibility="collapsed")
         with c2:
@@ -142,9 +146,17 @@ def _quick_add_task_for_job(job_id: str):
         with c3:
             assigned_to = st.selectbox("Assign", ROLES, label_visibility="collapsed")
         with c4:
+            wo_number = st.text_input("WO#", placeholder="WO# (optional)", label_visibility="collapsed")
+        with c5:
             submitted = st.form_submit_button("＋", use_container_width=True, type="primary")
         if submitted and title.strip():
-            create_task(job_id=job_id, title=title.strip(), task_type=task_type, assigned_to=assigned_to)
+            create_task(
+                job_id=job_id,
+                title=title.strip(),
+                task_type=task_type,
+                assigned_to=assigned_to,
+                wo_number=wo_number.strip(),
+            )
             st.rerun()
 
 
@@ -178,11 +190,13 @@ def _task_row(task: dict):
     waiting_str = f" ⏳ waiting on {waiting}" if waiting else ""
     priority = task.get("priority", "Normal")
     priority_badge = " ⚡" if priority == "Urgent" else " 🚨" if priority == "Critical" else ""
+    wo = task.get("wo_number", "")
+    wo_str = f" &nbsp;<span style='background:#2d2d2d;color:#aaa;padding:1px 5px;border-radius:3px;font-size:0.78em'>WO#{wo}</span>" if wo else ""
 
     c1, c2, c3, c4 = st.columns([5, 2, 1, 1])
     with c1:
         st.markdown(
-            f"{indicator}{priority_badge} {task['title']} "
+            f"{indicator}{priority_badge} {task['title']}{wo_str} "
             f"<span style='color:gray;font-size:0.85em'>— {assigned} ({age_str}){waiting_str}</span>",
             unsafe_allow_html=True,
         )

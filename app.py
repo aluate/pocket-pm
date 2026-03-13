@@ -7,6 +7,30 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# Mobile-friendly CSS
+st.markdown("""
+<style>
+/* Larger tap targets on mobile */
+.stButton > button {
+    min-height: 2.5rem;
+}
+/* Reduce padding on mobile */
+@media (max-width: 768px) {
+    .block-container {
+        padding: 0.5rem 0.75rem 2rem;
+    }
+    /* Stack nav buttons more comfortably */
+    .stButton > button {
+        font-size: 0.75rem;
+        padding: 0.4rem 0.2rem;
+    }
+}
+/* Hide Streamlit branding */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+</style>
+""", unsafe_allow_html=True)
+
 # Page imports
 from pages.home import home_page
 from pages.jobs_kanban import jobs_kanban_page
@@ -24,14 +48,13 @@ def nav_button(label: str, page: str, current: str):
 
 
 def main():
-    # Initialize session state
     if "current_page" not in st.session_state:
         st.session_state.current_page = "home"
 
     current = st.session_state.current_page
 
-    # Top navigation bar
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    # Top navigation — 5 columns (removed empty 6th)
+    c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
         nav_button("🏠 Home", "home", current)
     with c2:
@@ -42,12 +65,9 @@ def main():
         nav_button("📅 Schedule", "schedule", current)
     with c5:
         nav_button("⚙️ Settings", "settings", current)
-    with c6:
-        pass  # Reserved
 
     st.markdown("---")
 
-    # Route to page
     if current == "home":
         home_page()
     elif current == "jobs":

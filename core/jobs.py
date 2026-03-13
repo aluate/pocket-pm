@@ -19,6 +19,7 @@ def get_job(job_id: str) -> Optional[dict]:
 
 def create_job(
     job_name: str,
+    job_number: str = "",
     builder: str = "",
     client_name: str = "",
     responsible_pm: str = "Karl",
@@ -26,13 +27,13 @@ def create_job(
     install_type: str = "Install",
     install_date: Optional[date] = None,
     notes: str = "",
-    template_name: Optional[str] = None,
     its_id: Optional[str] = None,
     source: str = "manual",
 ) -> dict:
     db = get_client()
     payload = {
         "job_name": job_name,
+        "job_number": job_number,
         "builder": builder,
         "client_name": client_name,
         "responsible_pm": responsible_pm,
@@ -48,22 +49,21 @@ def create_job(
     result = db.table("jobs").insert(payload).execute()
     job = result.data[0]
 
-    # Auto-generate tasks from template
-    if template_name and template_name != "None":
-        template_tasks = get_template_tasks(template_name)
-        if template_tasks:
-            task_rows = [
-                {
-                    "job_id": job["id"],
-                    "title": t["title"],
-                    "task_type": t["task_type"],
-                    "assigned_to": t["assigned_to"],
-                    "status": "Open",
-                    "priority": "Normal",
-                }
-                for t in template_tasks
-            ]
-            db.table("tasks").insert(task_rows).execute()
+    # Always auto-generate tasks from Standard template
+    template_tasks = get_template_tasks("Standard")
+    if template_tasks:
+        task_rows = [
+            {
+                "job_id": job["id"],
+                "title": t["title"],
+                "task_type": t["task_type"],
+                "assigned_to": t["assigned_to"],
+                "status": "Open",
+                "priority": "Normal",
+            }
+            for t in template_tasks
+        ]
+        db.table("tasks").insert(task_rows).execute()
 
     return job
 

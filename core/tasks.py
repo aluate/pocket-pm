@@ -99,6 +99,7 @@ def create_task(
     waiting_on: Optional[str] = None,
     status: str = "Open",
     priority: str = "Normal",
+    wo_number: str = "",
 ) -> dict:
     db = get_client()
     payload = {
@@ -109,6 +110,7 @@ def create_task(
         "waiting_on": waiting_on,
         "status": status,
         "priority": priority,
+        "wo_number": wo_number,
     }
     result = db.table("tasks").insert(payload).execute()
     return result.data[0]
