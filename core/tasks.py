@@ -5,12 +5,13 @@ from core.constants import AGING_YELLOW, AGING_RED
 
 
 def get_task_age_days(task: dict) -> int:
-    created_str = task.get("created_at", "")
-    if not created_str:
+    # Use activated_at if set (sequential tasks age from activation); fall back to created_at
+    ts_str = task.get("activated_at") or task.get("created_at", "")
+    if not ts_str:
         return 0
     try:
-        created = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
-        return (datetime.now(timezone.utc) - created).days
+        ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+        return (datetime.now(timezone.utc) - ts).days
     except Exception:
         return 0
 
@@ -121,11 +122,13 @@ def get_all_tasks(include_complete: bool = False) -> list[dict]:
     return result.data or []
 
 
-def get_tasks_for_job(job_id: str, include_complete: bool = True) -> list[dict]:
+def get_tasks_for_job(job_id: str, include_complete: bool = True, include_pending: bool = True) -> list[dict]:
     db = get_client()
-    query = db.table("tasks").select("*").eq("job_id", job_id).order("created_at")
+    query = db.table("tasks").select("*").eq("job_id", job_id).order("seq_order").order("created_at")
     if not include_complete:
         query = query.neq("status", "Complete")
+    if not include_pending:
+        query = query.neq("status", "Pending")
     result = query.execute()
     return result.data or []
 
@@ -140,6 +143,7 @@ def get_my_tasks(assigned_to: str = "Karl", include_complete: bool = False) -> l
     )
     if not include_complete:
         query = query.neq("status", "Complete")
+    query = query.neq("status", "Pending")
     result = query.execute()
     return result.data or []
 
@@ -163,6 +167,7 @@ def get_team_tasks(include_complete: bool = False) -> list[dict]:
         db.table("tasks")
         .select("*, jobs(job_name)")
         .neq("assigned_to", "Karl")
+        .neq("status", "Pending")
         .order("assigned_to")
     )
     if not include_complete:
@@ -198,7 +203,39 @@ def create_task(
     return result.data[0]
 
 
-def complete_task(task_id: str) -> None:
+def activate_next_task(job_id: str) -> Optional[str]:
+    """Activate the next Pending task for a job (lowest seq_order). Returns activated task id or None."""
+    db = get_client()
+    result = (
+        db.table("tasks")
+        .select("id, seq_order")
+        .eq("job_id", job_id)
+        .eq("status", "Pending")
+        .order("seq_order")
+        .limit(1)
+        .execute()
+    )
+    rows = result.data or []
+    if not rows:
+        return None
+    next_id = rows[0]["id"]
+    db.table("tasks").update({
+        "status": "Open",
+        "activated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", next_id).execute()
+    return next_id
+
+
+def activate_task(task_id: str) -> None:
+    """Manually activate a specific Pending task."""
+    db = get_client()
+    db.table("tasks").update({
+        "status": "Open",
+        "activated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", task_id).execute()
+
+
+def complete_task(task_id: str, job_id: Optional[str] = None) -> None:
     db = get_client()
     db.table("tasks").update(
         {
@@ -206,6 +243,8 @@ def complete_task(task_id: str) -> None:
             "completed_at": datetime.now(timezone.utc).isoformat(),
         }
     ).eq("id", task_id).execute()
+    if job_id:
+        activate_next_task(job_id)
 
 
 def update_task(task_id: str, **fields) -> None:

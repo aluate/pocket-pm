@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
 from core.supabase_client import get_client
 from core.templates import get_template_tasks, SAMPLE_TASKS
@@ -86,21 +86,24 @@ def create_job(
 
     all_tasks = template_tasks + extra_tasks
     if all_tasks:
-        task_rows = [
-            {
+        now_utc = datetime.utcnow().isoformat() + "+00:00"
+        task_rows = []
+        for i, t in enumerate(all_tasks):
+            is_first = (i == 0)
+            task_rows.append({
                 "job_id": job["id"],
                 "title": t["title"],
                 "task_type": t["task_type"],
                 "assigned_to": t["assigned_to"],
-                "status": "Open",
+                "status": "Open" if is_first else "Pending",
                 "priority": "Normal",
                 "due_date": _calc_due_date(t, today, install_date),
                 "followup_days": t.get("followup_days"),
                 "followup_created": False,
                 "wo_number": "",
-            }
-            for t in all_tasks
-        ]
+                "seq_order": i,
+                "activated_at": now_utc if is_first else None,
+            })
         db.table("tasks").insert(task_rows).execute()
 
     return job

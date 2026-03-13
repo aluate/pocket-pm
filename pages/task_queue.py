@@ -43,7 +43,7 @@ def _render_task_row(task: dict, show_job: bool = True):
         )
     with c2:
         if st.button("✓", key=f"tq_done_{task['id']}", help="Mark complete", use_container_width=True):
-            complete_task(task["id"])
+            complete_task(task["id"], job_id=task.get("job_id"))
             st.rerun()
 
 

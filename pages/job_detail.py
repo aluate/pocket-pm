@@ -6,6 +6,7 @@ from core.tasks import (
     complete_task,
     update_task,
     delete_task,
+    activate_task,
     get_age_indicator,
     get_task_age_days,
     get_due_label,
@@ -45,15 +46,18 @@ def job_detail_page():
     if new_followups:
         st.warning(f"{new_followups} follow-up task(s) auto-created.")
 
-    # --- Tasks ---
-    st.subheader("Tasks")
-    _quick_add_task_for_job(job_id)
-    _tasks_section(job_id)
-    st.divider()
+    # --- Tabs: Tasks | Timeline | Photos ---
+    tab_tasks, tab_timeline, tab_photos = st.tabs(["Tasks", "Timeline", "Photos"])
 
-    # --- Photos ---
-    st.subheader("Photos")
-    _photos_section(job_id)
+    with tab_tasks:
+        _quick_add_task_for_job(job_id)
+        _tasks_section(job_id)
+
+    with tab_timeline:
+        _timeline_section(job_id)
+
+    with tab_photos:
+        _photos_section(job_id)
 
 
 def _job_header(job: dict):
@@ -174,9 +178,12 @@ def _tasks_section(job_id: str):
         st.caption("No open tasks.")
         return
 
-    # Group by task_type in order
+    active_tasks = [t for t in tasks if t.get("status") != "Pending"]
+    pending_tasks = [t for t in tasks if t.get("status") == "Pending"]
+
+    # Active tasks grouped by type
     grouped: dict[str, list] = {}
-    for t in tasks:
+    for t in active_tasks:
         ttype = t.get("task_type", "Field")
         grouped.setdefault(ttype, []).append(t)
 
@@ -185,10 +192,30 @@ def _tasks_section(job_id: str):
             continue
         st.markdown(f"**{ttype.upper()}**")
         for task in grouped[ttype]:
-            _task_row(task)
+            _task_row(task, job_id)
+
+    # Pending tasks in a collapsed section
+    if pending_tasks:
+        with st.expander(f"⏸ Pending ({len(pending_tasks)}) — waiting to be activated"):
+            for task in pending_tasks:
+                _pending_task_row(task)
 
 
-def _task_row(task: dict):
+def _pending_task_row(task: dict):
+    c1, c2 = st.columns([6, 1])
+    with c1:
+        assigned = task.get("assigned_to", "—")
+        st.markdown(
+            f"<span style='color:gray'>⏸ {task['title']} → <b>{assigned}</b></span>",
+            unsafe_allow_html=True,
+        )
+    with c2:
+        if st.button("▶ Start", key=f"activate_{task['id']}", use_container_width=True):
+            activate_task(task["id"])
+            st.rerun()
+
+
+def _task_row(task: dict, job_id: str = ""):
     indicator = get_age_indicator(task)
     age = get_task_age_days(task)
     age_str = f"{age}d" if age > 0 else "today"
@@ -238,12 +265,85 @@ def _task_row(task: dict):
                 st.rerun()
     with c3:
         if st.button("✓", key=f"done_{task['id']}", help="Mark complete", use_container_width=True):
-            complete_task(task["id"])
+            complete_task(task["id"], job_id=job_id or None)
             st.rerun()
     with c4:
         if st.button("🗑", key=f"del_{task['id']}", help="Delete task", use_container_width=True):
             delete_task(task["id"])
             st.rerun()
+
+
+def _timeline_section(job_id: str):
+    from datetime import datetime, timezone
+    tasks = get_tasks_for_job(job_id, include_complete=True)
+    if not tasks:
+        st.caption("No tasks yet.")
+        return
+
+    complete = [t for t in tasks if t.get("status") == "Complete"]
+    active   = [t for t in tasks if t.get("status") not in ("Complete", "Pending")]
+    pending  = [t for t in tasks if t.get("status") == "Pending"]
+
+    def _fmt_date(ts_str):
+        if not ts_str:
+            return "—"
+        try:
+            dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+            return dt.strftime("%b %d")
+        except Exception:
+            return ts_str[:10] if ts_str else "—"
+
+    def _duration(start_str, end_str):
+        if not start_str or not end_str:
+            return ""
+        try:
+            s = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
+            e = datetime.fromisoformat(end_str.replace("Z", "+00:00"))
+            days = (e - s).days
+            return f"{days}d"
+        except Exception:
+            return ""
+
+    # Completed tasks
+    if complete:
+        st.markdown("**✅ Completed**")
+        for t in complete:
+            activated = _fmt_date(t.get("activated_at") or t.get("created_at"))
+            completed = _fmt_date(t.get("completed_at"))
+            dur = _duration(t.get("activated_at") or t.get("created_at"), t.get("completed_at"))
+            dur_str = f" <span style='color:gray;font-size:0.8em'>({dur})</span>" if dur else ""
+            assigned = t.get("assigned_to", "—")
+            st.markdown(
+                f"<span style='color:#4caf50'>✓</span> **{t['title']}** "
+                f"<span style='color:gray;font-size:0.85em'>→ {assigned} &nbsp; "
+                f"started {activated} → done {completed}{dur_str}</span>",
+                unsafe_allow_html=True,
+            )
+
+    # Active tasks
+    if active:
+        st.markdown("**🔄 In Progress**")
+        for t in active:
+            indicator = get_age_indicator(t)
+            age = get_task_age_days(t)
+            activated = _fmt_date(t.get("activated_at") or t.get("created_at"))
+            assigned = t.get("assigned_to", "—")
+            st.markdown(
+                f"{indicator or '○'} **{t['title']}** "
+                f"<span style='color:gray;font-size:0.85em'>→ {assigned} &nbsp; "
+                f"started {activated} ({age}d ago)</span>",
+                unsafe_allow_html=True,
+            )
+
+    # Pending tasks
+    if pending:
+        st.markdown("**⏸ Pending**")
+        for t in pending:
+            assigned = t.get("assigned_to", "—")
+            st.markdown(
+                f"<span style='color:gray'>⏸ {t['title']} → {assigned}</span>",
+                unsafe_allow_html=True,
+            )
 
 
 def _photos_section(job_id: str):

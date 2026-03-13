@@ -80,7 +80,7 @@ def _my_tasks_section():
             )
         with col_btn:
             if st.button("✓", key=f"done_{task['id']}", help="Mark complete"):
-                complete_task(task["id"])
+                complete_task(task["id"], job_id=task.get("job_id"))
                 st.rerun()
 
 
