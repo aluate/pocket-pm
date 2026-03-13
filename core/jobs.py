@@ -1,8 +1,26 @@
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 from core.supabase_client import get_client
-from core.templates import get_template_tasks
+from core.templates import get_template_tasks, SAMPLE_TASKS
 from core.constants import STAGES
+
+
+def _add_business_days(start: date, days: int) -> date:
+    current = start
+    added = 0
+    while added < days:
+        current += timedelta(days=1)
+        if current.weekday() < 5:
+            added += 1
+    return current
+
+
+def _calc_due_date(t: dict, created: date, install: Optional[date]) -> Optional[str]:
+    if t.get("due_days_from_created") is not None:
+        return _add_business_days(created, t["due_days_from_created"]).isoformat()
+    if t.get("due_days_from_install") is not None and install:
+        return (install + timedelta(days=t["due_days_from_install"])).isoformat()
+    return None
 
 
 def get_all_jobs() -> list[dict]:
@@ -29,6 +47,9 @@ def create_job(
     notes: str = "",
     its_id: Optional[str] = None,
     source: str = "manual",
+    has_tfl: bool = False,
+    has_stain: bool = False,
+    has_paint: bool = False,
 ) -> dict:
     db = get_client()
     payload = {
@@ -42,16 +63,29 @@ def create_job(
         "install_date": install_date.isoformat() if install_date else None,
         "notes": notes,
         "source": source,
+        "has_tfl": has_tfl,
+        "has_stain": has_stain,
+        "has_paint": has_paint,
     }
     if its_id:
         payload["its_id"] = its_id
 
     result = db.table("jobs").insert(payload).execute()
     job = result.data[0]
+    today = date.today()
 
-    # Always auto-generate tasks from Standard template
+    # Build task list: standard template + finish-type sample tasks
     template_tasks = get_template_tasks("Standard")
-    if template_tasks:
+    extra_tasks = []
+    if has_stain:
+        extra_tasks += SAMPLE_TASKS["stain"]
+    if has_paint:
+        extra_tasks += SAMPLE_TASKS["paint"]
+    if has_tfl:
+        extra_tasks += SAMPLE_TASKS["tfl"]
+
+    all_tasks = template_tasks + extra_tasks
+    if all_tasks:
         task_rows = [
             {
                 "job_id": job["id"],
@@ -60,8 +94,12 @@ def create_job(
                 "assigned_to": t["assigned_to"],
                 "status": "Open",
                 "priority": "Normal",
+                "due_date": _calc_due_date(t, today, install_date),
+                "followup_days": t.get("followup_days"),
+                "followup_created": False,
+                "wo_number": "",
             }
-            for t in template_tasks
+            for t in all_tasks
         ]
         db.table("tasks").insert(task_rows).execute()
 
@@ -75,8 +113,7 @@ def update_job_stage(job_id: str, stage: str) -> None:
 
 def update_job(job_id: str, **fields) -> None:
     db = get_client()
-    # Convert date objects to ISO strings
-    for k, v in fields.items():
+    for k, v in list(fields.items()):
         if isinstance(v, date):
             fields[k] = v.isoformat()
     db.table("jobs").update(fields).eq("id", job_id).execute()
@@ -100,7 +137,6 @@ def get_jobs_by_stage(stage: str) -> list[dict]:
 
 
 def get_install_jobs(start_date: Optional[date] = None, end_date: Optional[date] = None) -> list[dict]:
-    """Get jobs with install dates, optionally filtered by date range."""
     db = get_client()
     query = db.table("jobs").select("*").not_.is_("install_date", "null")
     if start_date:

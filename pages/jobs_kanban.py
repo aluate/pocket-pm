@@ -22,7 +22,7 @@ def jobs_kanban_page():
 
 def _new_job_form():
     st.subheader("New Job")
-    st.caption("Standard task list (Estimate → Closeout) will be created automatically.")
+    st.caption("Standard task list auto-generates. Finish type adds sample tasks.")
 
     with st.form("new_job_form", clear_on_submit=True):
         c1, c2 = st.columns(2)
@@ -31,11 +31,15 @@ def _new_job_form():
             job_number = st.text_input("Job # (from ProCore/Innergy)", placeholder="e.g. 2024-047")
             builder = st.text_input("Builder", placeholder="e.g. Selkirk Builders")
             install_type = st.selectbox("Install Type", INSTALL_TYPES)
+            install_date = st.date_input("Install Date", value=None)
         with c2:
             client_name = st.text_input("Client Name", placeholder="e.g. Johnson Family")
             responsible_pm = st.selectbox("Responsible PM", ROLES, index=0)
             stage = st.selectbox("Starting Stage", STAGES)
-            install_date = st.date_input("Install Date", value=None)
+            st.markdown("**Finish Types** *(adds sample tasks)*")
+            has_tfl = st.checkbox("TFL")
+            has_stain = st.checkbox("Stain")
+            has_paint = st.checkbox("Paint")
 
         notes = st.text_area("Notes", height=60)
 
@@ -59,8 +63,12 @@ def _new_job_form():
                     install_type=install_type,
                     install_date=install_date if install_date else None,
                     notes=notes.strip(),
+                    has_tfl=has_tfl,
+                    has_stain=has_stain,
+                    has_paint=has_paint,
                 )
-                st.success(f"Created: {job['job_name']} — 15 tasks generated.")
+                extra = sum([has_tfl, has_stain, has_paint]) * 2
+                st.success(f"Created: {job['job_name']} — {15 + extra} tasks generated.")
                 st.session_state.show_new_job_form = False
                 st.rerun()
 

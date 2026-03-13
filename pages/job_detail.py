@@ -8,6 +8,8 @@ from core.tasks import (
     delete_task,
     get_age_indicator,
     get_task_age_days,
+    get_due_label,
+    check_and_create_followups,
 )
 from core.photos import upload_photo, get_photos_for_job
 from core.constants import STAGES, TASK_TYPES, ROLES, TASK_STATUSES, TASK_PRIORITIES, INSTALL_TYPES, INSTALL_STATUSES, TASK_TYPE_ORDER
@@ -37,6 +39,11 @@ def job_detail_page():
     # --- Job Header ---
     _job_header(job)
     st.divider()
+
+    # Check and auto-create any pending follow-ups
+    new_followups = check_and_create_followups(job_id)
+    if new_followups:
+        st.warning(f"{new_followups} follow-up task(s) auto-created.")
 
     # --- Tasks ---
     st.subheader("Tasks")
@@ -193,11 +200,14 @@ def _task_row(task: dict):
     wo = task.get("wo_number", "")
     wo_str = f" &nbsp;<span style='background:#2d2d2d;color:#aaa;padding:1px 5px;border-radius:3px;font-size:0.78em'>WO#{wo}</span>" if wo else ""
 
+    due_label = get_due_label(task)
+    due_str = f" &nbsp;<span style='color:#e07b00;font-size:0.8em'>{due_label}</span>" if due_label else ""
+
     c1, c2, c3, c4 = st.columns([5, 2, 1, 1])
     with c1:
         st.markdown(
-            f"{indicator}{priority_badge} {task['title']}{wo_str} "
-            f"<span style='color:gray;font-size:0.85em'>— {assigned} ({age_str}){waiting_str}</span>",
+            f"{indicator}{priority_badge} {task['title']}{wo_str}{due_str} "
+            f"<span style='color:gray;font-size:0.85em'>→ <b>{assigned}</b> ({age_str}){waiting_str}</span>",
             unsafe_allow_html=True,
         )
     with c2:
