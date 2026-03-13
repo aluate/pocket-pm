@@ -61,6 +61,44 @@ def get_age_indicator(task: dict) -> str:
     return ""
 
 
+def task_score(task: dict) -> int:
+    """
+    Higher score = should be done sooner.
+    Used to rank Karl's task queue on the home screen.
+    """
+    score = 0
+    priority = task.get("priority", "Normal")
+    age = get_task_age_days(task)
+    due_days = get_due_days(task)
+    title = task.get("title", "")
+
+    # Priority
+    if priority == "Critical":
+        score += 100
+    elif priority == "Urgent":
+        score += 40
+
+    # Age (3 pts/day, capped at 60 so ancient tasks don't bury everything else)
+    score += min(age * 3, 60)
+
+    # Due date
+    if due_days is not None:
+        if due_days < 0:                      # overdue: 15 pts/day, capped at 90
+            score += min(abs(due_days) * 15, 90)
+        elif due_days == 0:                   # due today
+            score += 35
+        elif due_days <= 2:                   # due very soon
+            score += 20
+        elif due_days <= 5:
+            score += 10
+
+    # Auto-generated follow-ups are already past a threshold — treat as urgent
+    if title.lower().startswith("follow up"):
+        score += 35
+
+    return score
+
+
 def get_due_label(task: dict) -> str:
     """Human-readable due date label."""
     due_days = get_due_days(task)
