@@ -149,7 +149,7 @@ def _edit_job_form(job: dict):
 
 def _quick_add_task_for_job(job_id: str):
     with st.form(f"quick_add_{job_id}", clear_on_submit=True):
-        c1, c2, c3, c4, c5 = st.columns([4, 2, 2, 2, 1])
+        c1, c2, c3, c4, c5, c6 = st.columns([4, 2, 2, 2, 2, 1])
         with c1:
             title = st.text_input("Task", placeholder="Task description", label_visibility="collapsed")
         with c2:
@@ -159,6 +159,8 @@ def _quick_add_task_for_job(job_id: str):
         with c4:
             wo_number = st.text_input("WO#", placeholder="WO# (optional)", label_visibility="collapsed")
         with c5:
+            due_date = st.date_input("Due date", value=None, label_visibility="collapsed")
+        with c6:
             submitted = st.form_submit_button("＋", use_container_width=True, type="primary")
         if submitted and title.strip():
             create_task(
@@ -167,23 +169,21 @@ def _quick_add_task_for_job(job_id: str):
                 task_type=task_type,
                 assigned_to=assigned_to,
                 wo_number=wo_number.strip(),
+                due_date=due_date.isoformat() if due_date else None,
             )
             st.rerun()
 
 
 def _tasks_section(job_id: str):
-    tasks = get_tasks_for_job(job_id, include_complete=False)
+    tasks = get_tasks_for_job(job_id, include_complete=False, include_pending=False)
 
     if not tasks:
-        st.caption("No open tasks.")
+        st.caption("No active tasks. Check the Timeline tab to see what's coming up.")
         return
 
-    active_tasks = [t for t in tasks if t.get("status") != "Pending"]
-    pending_tasks = [t for t in tasks if t.get("status") == "Pending"]
-
-    # Active tasks grouped by type
+    # Group by task_type in order
     grouped: dict[str, list] = {}
-    for t in active_tasks:
+    for t in tasks:
         ttype = t.get("task_type", "Field")
         grouped.setdefault(ttype, []).append(t)
 
@@ -194,25 +194,6 @@ def _tasks_section(job_id: str):
         for task in grouped[ttype]:
             _task_row(task, job_id)
 
-    # Pending tasks in a collapsed section
-    if pending_tasks:
-        with st.expander(f"⏸ Pending ({len(pending_tasks)}) — waiting to be activated"):
-            for task in pending_tasks:
-                _pending_task_row(task)
-
-
-def _pending_task_row(task: dict):
-    c1, c2 = st.columns([6, 1])
-    with c1:
-        assigned = task.get("assigned_to", "—")
-        st.markdown(
-            f"<span style='color:gray'>⏸ {task['title']} → <b>{assigned}</b></span>",
-            unsafe_allow_html=True,
-        )
-    with c2:
-        if st.button("▶ Start", key=f"activate_{task['id']}", use_container_width=True):
-            activate_task(task["id"])
-            st.rerun()
 
 
 def _task_row(task: dict, job_id: str = ""):
